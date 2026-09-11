@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.*
+!*.example
+src/config.local.js
+playwright-report/
+test-results/
+*.xlsx
+*.xls
+*.csv
+*.jpg
+*.jpeg
+*.png
