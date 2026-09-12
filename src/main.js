@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { GOOGLE_CLIENT_ID } from './config.js';
+import { GOOGLE_CLIENT_IDS } from './config.js';
 import { readWorkbook, detectColumn, prepareRows, summarizeUrl, makeProblemsCsv, zipName, extractDriveFileId, parseImageMime } from './parser.js';
 import './style.css';
 
@@ -19,7 +19,31 @@ function render() { const counts = { total: rows.length, found: rows.filter((r) 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 async function loadFile(file) { lastFile = file; $('#fileName').textContent = file.name; data = await readWorkbook(file); $('#sheetWrap').hidden = data.sheets.length < 2; $('#sheet').innerHTML = data.sheets.map((s) => `<option>${esc(s.name)}</option>`).join(''); const s = data.sheets[0]; fillSelect($('#nameCol'), s.headers, detectColumn(s.headers, ['nama', 'name', 'nama lengkap', 'nama siswa', 'nama karyawan', 'nama peserta'])); fillSelect($('#linkCol'), s.headers, detectColumn(s.headers, ['foto', 'link foto', 'photo', 'link drive', 'drive', 'pas foto', 'upload foto'])); fillSelect($('#idCol'), s.headers, detectColumn(s.headers, ['no', 'nomor', 'id', 'nis', 'nip', 'nik', 'nomor peserta']), true); refresh(); }
 $('#pick').onclick = () => $('#file').click(); $('#file').onchange = (e) => loadFile(e.target.files[0]); $('#drop').ondragover = (e) => { e.preventDefault(); $('#drop').classList.add('drag'); }; $('#drop').ondragleave = () => $('#drop').classList.remove('drag'); $('#drop').ondrop = (e) => { e.preventDefault(); $('#drop').classList.remove('drag'); loadFile(e.dataTransfer.files[0]); }; $('#sheet').onchange = () => { const s = data.sheets.find((x) => x.name === $('#sheet').value); fillSelect($('#nameCol'), s.headers, detectColumn(s.headers, ['nama', 'name', 'nama lengkap', 'nama siswa', 'nama karyawan', 'nama peserta'])); fillSelect($('#linkCol'), s.headers, detectColumn(s.headers, ['foto', 'link foto', 'photo', 'link drive', 'drive', 'pas foto', 'upload foto'])); fillSelect($('#idCol'), s.headers, detectColumn(s.headers, ['no', 'nomor', 'id', 'nis', 'nip', 'nik', 'nomor peserta']), true); refresh(); }; ['nameCol', 'linkCol', 'idCol', 'caps'].forEach((id) => $(`#${id}`).onchange = refresh); document.querySelectorAll('input[name=mode]').forEach((e) => e.onchange = refresh);
-$('#folder').onclick = async () => { if (!supportedDirect) { $('#folderHint').textContent = 'Browser ini akan memakai fallback ZIP.'; return; } folderHandle = await window.showDirectoryPicker({ mode: 'readwrite' }); $('#folderHint').textContent = `Folder dipilih: ${folderHandle.name}`; }; $('#connect').onclick = () => { if (!GOOGLE_CLIENT_ID) { $('#driveStatus').textContent = 'Tambahkan Client ID di src/config.js'; return; } if (!window.google?.accounts?.oauth2) { $('#driveStatus').textContent = 'SDK Google belum siap.'; return; } const client = google.accounts.oauth2.initTokenClient({ client_id: GOOGLE_CLIENT_ID, scope: 'https://www.googleapis.com/auth/drive.readonly', callback: (r) => { token = r.access_token; $('#driveStatus').textContent = 'Google Drive terhubung'; } }); client.requestAccessToken({ prompt: 'select_account' }); };
+$('#folder').onclick = async () => { if (!supportedDirect) { $('#folderHint').textContent = 'Browser ini akan memakai fallback ZIP.'; return; } folderHandle = await window.showDirectoryPicker({ mode: 'readwrite' }); $('#folderHint').textContent = `Folder dipilih: ${folderHandle.name}`; }; let oauthClientIndex = 0;
+function connectWithClient(index = 0) {
+  oauthClientIndex = index;
+  if (!GOOGLE_CLIENT_IDS.length) { $('#driveStatus').textContent = 'Tambahkan Client ID di src/config.js'; return; }
+  if (!window.google?.accounts?.oauth2) { $('#driveStatus').textContent = 'SDK Google belum siap.'; return; }
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_IDS[index],
+    scope: 'https://www.googleapis.com/auth/drive.readonly',
+    callback: (r) => {
+      if (r.error || !r.access_token) {
+        if (index + 1 < GOOGLE_CLIENT_IDS.length) { connectWithClient(index + 1); return; }
+        $('#driveStatus').textContent = 'OAuth gagal: ' + (r.error || 'token tidak diterima');
+        return;
+      }
+      token = r.access_token;
+      $('#driveStatus').textContent = 'Google Drive terhubung (Client ID ' + (index + 1) + ')';
+    },
+    error_callback: () => {
+      if (index + 1 < GOOGLE_CLIENT_IDS.length) connectWithClient(index + 1);
+      else $('#driveStatus').textContent = 'Popup Google gagal dibuka.';
+    },
+  });
+  client.requestAccessToken({ prompt: 'select_account' });
+}
+$('#connect').onclick = () => connectWithClient(0);
 async function getImage(r) {
   const id = extractDriveFileId(r.url);
   let response;
