@@ -24,19 +24,24 @@ export function extractDriveFileId(input) {
   } catch { return null; }
 }
 export function isDriveFolderUrl(input) { return /\/folders\/[a-zA-Z0-9_-]+/i.test(String(input ?? '')); }
-export function parseImageMime(mime, bytes) {
+export function parseDownloadMime(mime, bytes) {
   const m = String(mime || '').toLowerCase();
   if (m === 'image/jpeg' || m === 'image/jpg') return 'jpg';
   if (m === 'image/png') return 'png';
   if (m === 'image/webp') return 'webp';
   if (m === 'image/heic') return 'heic';
   if (m === 'image/heif') return 'heif';
+  if (m === 'application/pdf') return 'pdf';
   const b = new Uint8Array(bytes || []);
   if (b[0] === 0xff && b[1] === 0xd8) return 'jpg';
   if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'png';
   if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45) return 'webp';
+  if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46 && b[4] === 0x2d) return 'pdf';
   return null;
 }
+
+// Kompatibilitas pemakaian lama: sekarang juga mengenali PDF.
+export function parseImageMime(mime, bytes) { return parseDownloadMime(mime, bytes); }
 export function sanitizeFilename(value, max = 120) {
   // eslint-disable-next-line no-control-regex
   let name = String(value ?? '').replace(/[<>:"/\\|?*\x00-\x1F]/g, '').replace(/\s+/g, ' ').trim().replace(/[. ]+$/g, '');
